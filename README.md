@@ -313,24 +313,79 @@
             }
         });
         
-        // URL Query Parameter Support
+        // URL Query Parameter Support with proper separation
         function getUrlParameter(name) {
             const urlParams = new URLSearchParams(window.location.search);
             return urlParams.get(name);
         }
         
-        function initFromQueryParams() {
-            const urlParam = getUrlParameter('url');
-            const autoGenerate = getUrlParameter('auto') === 'true';
-            const imageOnly = getUrlParameter('image') === 'true';
+        function parseAppParameters() {
+            const fullUrl = window.location.href;
+            const questionMarkIndex = fullUrl.indexOf('?');
             
-            if (urlParam) {
-                // Decode the URL parameter
-                const decodedUrl = decodeURIComponent(urlParam);
-                urlInput.value = decodedUrl;
+            if (questionMarkIndex === -1) {
+                return { targetUrl: null, autoGenerate: false, imageOnly: false };
+            }
+            
+            const queryString = fullUrl.substring(questionMarkIndex + 1);
+            const urlParams = new URLSearchParams(queryString);
+            
+            // Get app control parameters first
+            const autoGenerate = urlParams.get('auto') === 'true';
+            const imageOnly = urlParams.get('image') === 'true';
+            
+            // For the URL parameter, we need to be more careful
+            let targetUrl = urlParams.get('url');
+            
+            // If URL parameter is not properly encoded, try alternative parsing
+            if (!targetUrl && queryString.includes('url=')) {
+                // Find the url= parameter manually
+                const urlParamStart = queryString.indexOf('url=') + 4;
+                let urlParamEnd = queryString.length;
+                
+                // Look for the next parameter that belongs to the app (auto= or image=)
+                const nextAutoIndex = queryString.indexOf('&auto=', urlParamStart);
+                const nextImageIndex = queryString.indexOf('&image=', urlParamStart);
+                
+                if (nextAutoIndex !== -1 && nextImageIndex !== -1) {
+                    urlParamEnd = Math.min(nextAutoIndex, nextImageIndex);
+                } else if (nextAutoIndex !== -1) {
+                    urlParamEnd = nextAutoIndex;
+                } else if (nextImageIndex !== -1) {
+                    urlParamEnd = nextImageIndex;
+                }
+                
+                targetUrl = queryString.substring(urlParamStart, urlParamEnd);
+                targetUrl = decodeURIComponent(targetUrl);
+            } else if (targetUrl) {
+                targetUrl = decodeURIComponent(targetUrl);
+            }
+            
+            // Also check for 'link' parameter as alternative
+            if (!targetUrl) {
+                targetUrl = urlParams.get('link');
+                if (targetUrl) {
+                    targetUrl = decodeURIComponent(targetUrl);
+                }
+            }
+            
+            return {
+                targetUrl,
+                autoGenerate,
+                imageOnly
+            };
+        }
+        
+        function initFromQueryParams() {
+            const params = parseAppParameters();
+            
+            console.log('Parsed parameters:', params); // Debug log
+            
+            if (params.targetUrl) {
+                urlInput.value = params.targetUrl;
                 
                 // Image-only mode for spreadsheet integration
-                if (imageOnly) {
+                if (params.imageOnly) {
                     document.body.style.margin = '0';
                     document.body.style.padding = '0';
                     document.body.style.background = 'white';
@@ -346,18 +401,18 @@
                     document.body.appendChild(imageContainer);
                     
                     // Generate QR code and display as image
-                    if (isValidURL(decodedUrl)) {
-                        generateQRImageOnly(decodedUrl, imageContainer);
+                    if (isValidURL(params.targetUrl)) {
+                        generateQRImageOnly(params.targetUrl, imageContainer);
                     }
                     return;
                 }
                 
                 // Auto-generate if auto=true parameter is present
-                if (autoGenerate) {
+                if (params.autoGenerate) {
                     // Small delay to ensure page is fully loaded
                     setTimeout(() => {
-                        if (isValidURL(decodedUrl)) {
-                            generateQRCode(decodedUrl);
+                        if (isValidURL(params.targetUrl)) {
+                            generateQRCode(params.targetUrl);
                         }
                     }, 100);
                 }
@@ -427,9 +482,11 @@
         // Test button functionality on page load
         console.log('QR Code Generator loaded successfully');
         console.log('Usage examples:');
-        console.log('- Set URL: ?url=https://example.com');
-        console.log('- Auto-generate: ?url=https://example.com&auto=true');
-        console.log('- Image only: ?url=https://example.com&image=true');
+        console.log('- Simple URL: ?url=https://example.com');
+        console.log('- URL with params: ?url=' + encodeURIComponent('https://example.com?id=123&name=test'));
+        console.log('- Auto-generate: ?url=' + encodeURIComponent('https://example.com?id=123') + '&auto=true');
+        console.log('- Image only: ?url=' + encodeURIComponent('https://example.com?param=value') + '&image=true');
+        console.log('- Complex example: ?url=' + encodeURIComponent('https://mysite.com/page?user=john&category=sales&filter=active') + '&auto=true&image=true');
     </script>
 </body>
 </html>
