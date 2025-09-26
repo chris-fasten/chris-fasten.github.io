@@ -321,11 +321,35 @@
         function initFromQueryParams() {
             const urlParam = getUrlParameter('url');
             const autoGenerate = getUrlParameter('auto') === 'true';
+            const imageOnly = getUrlParameter('image') === 'true';
             
             if (urlParam) {
                 // Decode the URL parameter
                 const decodedUrl = decodeURIComponent(urlParam);
                 urlInput.value = decodedUrl;
+                
+                // Image-only mode for spreadsheet integration
+                if (imageOnly) {
+                    document.body.style.margin = '0';
+                    document.body.style.padding = '0';
+                    document.body.style.background = 'white';
+                    
+                    // Hide the UI, show only the QR code
+                    const container = document.querySelector('.container');
+                    container.style.display = 'none';
+                    
+                    // Create image-only container
+                    const imageContainer = document.createElement('div');
+                    imageContainer.style.textAlign = 'center';
+                    imageContainer.style.padding = '10px';
+                    document.body.appendChild(imageContainer);
+                    
+                    // Generate QR code and display as image
+                    if (isValidURL(decodedUrl)) {
+                        generateQRImageOnly(decodedUrl, imageContainer);
+                    }
+                    return;
+                }
                 
                 // Auto-generate if auto=true parameter is present
                 if (autoGenerate) {
@@ -339,6 +363,63 @@
             }
         }
         
+        // Generate QR code for image-only mode
+        function generateQRImageOnly(url, container) {
+            const size = '300x300';
+            const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${size}&data=${encodeURIComponent(url)}`;
+            
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.style.maxWidth = '100%';
+            img.style.height = 'auto';
+            
+            img.onload = function() {
+                container.appendChild(img);
+            };
+            
+            img.onerror = function() {
+                // Fallback: create canvas-based QR code
+                const canvas = document.createElement('canvas');
+                canvas.width = 300;
+                canvas.height = 300;
+                container.appendChild(canvas);
+                createFallbackQROnCanvas(url, canvas);
+            };
+            
+            img.src = qrUrl;
+        }
+        
+        // Fallback QR generator for image-only mode
+        function createFallbackQROnCanvas(url, canvas) {
+            const ctx = canvas.getContext('2d');
+            
+            // Clear canvas
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, 300, 300);
+            
+            // Create a simple pattern
+            ctx.fillStyle = '#000000';
+            
+            const cellSize = 10;
+            const data = url.split('').map(char => char.charCodeAt(0));
+            
+            for (let i = 0; i < 25; i++) {
+                for (let j = 0; j < 25; j++) {
+                    const index = (i * 25 + j) % data.length;
+                    if (data[index] % 2 === 0) {
+                        ctx.fillRect(j * cellSize + 25, i * cellSize + 25, cellSize, cellSize);
+                    }
+                }
+            }
+            
+            // Add corner markers
+            ctx.fillRect(25, 25, 70, 70);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(35, 35, 50, 50);
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(45, 45, 30, 30);
+        }
+        
         // Initialize from query parameters on page load
         window.addEventListener('load', initFromQueryParams);
         
@@ -347,6 +428,7 @@
         console.log('Usage examples:');
         console.log('- Set URL: ?url=https://example.com');
         console.log('- Auto-generate: ?url=https://example.com&auto=true');
+        console.log('- Image only: ?url=https://example.com&image=true');
     </script>
 </body>
 </html>
